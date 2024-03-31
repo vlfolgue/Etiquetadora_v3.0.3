@@ -1,0 +1,58 @@
+//
+// !!! WARNING !!! AUTO-GENERATED FILE!
+// PLEASE DO NOT MODIFY IT AND USE "platformio.ini":
+// https://docs.platformio.org/page/projectconf/section_env_build.html#build-flags
+//
+{
+    "configurations": [
+        {
+            "name": "PlatformIO",
+            "includePath": [
+                "c:/Users/Victor LOF/Documents/PlatformIO/Projects/Etiquetadora_v3.0.3/include",
+                "c:/Users/Victor LOF/Documents/PlatformIO/Projects/Etiquetadora_v3.0.3/src",
+                "c:/Users/Victor LOF/Documents/PlatformIO/Projects/Etiquetadora_v3.0.3/.pio/libdeps/uno/LiquidCrystal",
+                "C:/Users/Victor LOF/.platformio/packages/framework-arduino-avr/libraries/Wire/src",
+                "C:/Users/Victor LOF/.platformio/packages/framework-arduino-avr/cores/arduino",
+                "C:/Users/Victor LOF/.platformio/packages/framework-arduino-avr/variants/standard",
+                "C:/Users/Victor LOF/.platformio/packages/framework-arduino-avr/libraries/EEPROM/src",
+                "C:/Users/Victor LOF/.platformio/packages/framework-arduino-avr/libraries/HID/src",
+                "C:/Users/Victor LOF/.platformio/packages/framework-arduino-avr/libraries/SPI/src",
+                "C:/Users/Victor LOF/.platformio/packages/framework-arduino-avr/libraries/SoftwareSerial/src",
+                ""
+            ],
+            "browse": {
+                "limitSymbolsToIncludedHeaders": true,
+                "path": [
+                    "c:/Users/Victor LOF/Documents/PlatformIO/Projects/Etiquetadora_v3.0.3/include",
+                    "c:/Users/Victor LOF/Documents/PlatformIO/Projects/Etiquetadora_v3.0.3/src",
+                    "c:/Users/Victor LOF/Documents/PlatformIO/Projects/Etiquetadora_v3.0.3/.pio/libdeps/uno/LiquidCrystal",
+                    "C:/Users/Victor LOF/.platformio/packages/framework-arduino-avr/libraries/Wire/src",
+                    "C:/Users/Victor LOF/.platformio/packages/framework-arduino-avr/cores/arduino",
+                    "C:/Users/Victor LOF/.platformio/packages/framework-arduino-avr/variants/standard",
+                    "C:/Users/Victor LOF/.platformio/packages/framework-arduino-avr/libraries/EEPROM/src",
+                    "C:/Users/Victor LOF/.platformio/packages/framework-arduino-avr/libraries/HID/src",
+                    "C:/Users/Victor LOF/.platformio/packages/framework-arduino-avr/libraries/SPI/src",
+                    "C:/Users/Victor LOF/.platformio/packages/framework-arduino-avr/libraries/SoftwareSerial/src",
+                    ""
+                ]
+            },
+            "defines": [
+                "PLATFORMIO=60114",
+                "ARDUINO_AVR_UNO",
+                "F_CPU=16000000L",
+                "ARDUINO_ARCH_AVR",
+                "ARDUINO=10808",
+                "__AVR_ATmega328P__",
+                ""
+            ],
+            "cStandard": "gnu11",
+            "cppStandard": "gnu++11",
+            "compilerPath": "C:/Users/Victor LOF/.platformio/packages/toolchain-atmelavr/bin/avr-gcc.exe",
+            "compilerArgs": [
+                "-mmcu=atmega328p",
+                ""
+            ]
+        }
+    ],
+    "version": 4
+}

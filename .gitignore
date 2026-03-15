@@ -1,0 +1,20 @@
+# IDE Config
+.claude/
+.codex/
+.specify/
+.vscode/
+
+# Build artifacts
+*.o
+*.a
+*.so
+*.dll
+*.exe
+
+# Temporal files
+*.tmp
+*.bak
+*~
+
+# VSCode workspace (optional, edit as needed)
+# *.code-workspace

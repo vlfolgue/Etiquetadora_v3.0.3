@@ -29,26 +29,6 @@ unsigned long delay_etiqueta_contra  = 0;
 unsigned long tiempo_parada_actuador = 300;
 
 /* =========================
-   LECTURA ESTABLE FC (anti-ruido 5 ms)
-   ========================= */
-const unsigned long STABLE_MS = 5;           // tiempo que debe mantenerse sin variar
-const unsigned int  SAMPLE_US  = 200;        // periodo de muestreo durante la ventana
-const unsigned long STABLE_IR_MS = 2;  // ms que el IR debe mantenerse en LOW (ajustable)
-
-
-inline bool isStableLevel(int pin, int targetLevel, unsigned long stable_ms = STABLE_MS) {
-  unsigned long t0 = millis();
-  while ((millis() - t0) < stable_ms) {
-    if (digitalRead(pin) != targetLevel) return false;
-    delayMicroseconds(SAMPLE_US);
-    yield();
-  }
-  return true;
-}
-inline bool isStableHigh(int pin, unsigned long stable_ms = STABLE_MS) { return isStableLevel(pin, HIGH, stable_ms); }
-inline bool isStableLow (int pin, unsigned long stable_ms = STABLE_MS) { return isStableLevel(pin, LOW , stable_ms);  }
-
-/* =========================
    ESTADO / TIEMPOS
    ========================= */
 unsigned long inicio_motor_etiqueta = 0;
@@ -210,14 +190,11 @@ void setup() {
 
   lcd_print_int(10,0, botellas_etiquetadas, 4);
   last_botellas = botellas_etiquetadas;
-
-  // Lecturas estables iniciales para mostrar en LCD
-  int fc1 = isStableHigh(PIN_FC1) ? 1 : (isStableLow(PIN_FC1) ? 0 : (digitalRead(PIN_FC1)==HIGH));
-  int fc2 = isStableHigh(PIN_FC2) ? 1 : (isStableLow(PIN_FC2) ? 0 : (digitalRead(PIN_FC2)==HIGH));
-  lcd_print_padded(4,1,  fc1==1 ? "HIGH" : "LOW ", 4);
+  int fc1 = (digitalRead(PIN_FC1) == HIGH) ? 1 : 0;
+  int fc2 = (digitalRead(PIN_FC2) == HIGH) ? 1 : 0;
+  lcd_print_padded(4,1, fc1==1 ? "HIGH" : "LOW ", 4);
   lcd_print_padded(14,1, fc2==1 ? "HIGH" : "LOW ", 4);
   last_fc1 = fc1; last_fc2 = fc2;
-
   lcd_print_int(5,2,  delay_botella_actuador, 4);
   lcd_print_int(15,2, delay_etiqueta_contra, 4);
   last_TAct = delay_botella_actuador;
@@ -230,36 +207,24 @@ void setup() {
    LOOP
    ========================= */
 void loop() {
-const unsigned long now = millis();
+  const unsigned long now = millis();
 
-// 1) Detección botella con lectura ESTABLE (anti-ruido)
-bool ir_low_stable = isStableLow(PIN_IR_BOTELLA, STABLE_IR_MS);
-
-if (ir_low_stable && !botella_detectada_previa) {
-  // Flanco de entrada confirmado y estable
-  llegada_botella = now;
-  botella_detectada_previa = true;
-}
-
-// Cuando deje de estar estable en LOW, confirmamos retorno estable a HIGH para rearmar
-if (!ir_low_stable) {
-  if (isStableHigh(PIN_IR_BOTELLA, STABLE_IR_MS)) {
-    botella_detectada_previa = false;  // listo para detectar la siguiente botella
+  // 1) Detección botella
+  bool botella = (digitalRead(PIN_IR_BOTELLA) == LOW);
+  if (botella && !botella_detectada_previa) {
+    llegada_botella = now;
+    botella_detectada_previa = true;
   }
-}
+  if (!botella) botella_detectada_previa = false;
 
-// Arranque de ciclo únicamente si la detección estable está presente
-if (!detectada_botella && ir_low_stable) {
-  mover1 = mover2 = true;
-  etiquetapuesta = contrapuesta = false;
-  detectada_botella = true;
-  llegada_botella = now;
-
-  // Estado "entre" inicial con lectura estable de FCs
-  FCentreetiquetas = isStableHigh(PIN_FC1);
-  FCentrecontras   = isStableHigh(PIN_FC2);
-}
-
+  if (!detectada_botella && botella && (now - llegada_botella >= 5)) {
+    mover1 = mover2 = true;
+    etiquetapuesta = contrapuesta = false;
+    detectada_botella = true;
+    llegada_botella = now;
+    FCentreetiquetas = (digitalRead(PIN_FC1) == HIGH);
+    FCentrecontras   = (digitalRead(PIN_FC2) == HIGH);
+  }
 
   // 2) Selector contras
   if (digitalRead(PIN_BTN_CONTRAS) == LOW) { mover2 = false; contrapuesta = true; }
@@ -276,18 +241,12 @@ if (!detectada_botella && ir_low_stable) {
          millis() > (llegada_botella + delay_botella_etiqueta)) {
     digitalWrite(PIN_MOTOR_ETI, HIGH);
     if (inicio_motor_etiqueta == 0) inicio_motor_etiqueta = millis();
-
-    // Lectura estable de FC1
-    bool fc1_entre = isStableHigh(PIN_FC1);
-
+    bool fc1_entre = (digitalRead(PIN_FC1) == HIGH);
     if ((millis() > inicio_motor_etiqueta + 200) && !etiquetapuesta) {
-      // Cambio de estado estable respecto al "entre" inicial
-      bool fc1_no_entre = isStableLow(PIN_FC1);
-      if ((FCentreetiquetas && fc1_no_entre) || (!FCentreetiquetas && fc1_entre)) {
+      if ((FCentreetiquetas && !fc1_entre) || (!FCentreetiquetas && fc1_entre)) {
         etiquetapuesta = true;
       }
     }
-
     if (fc1_entre && etiquetapuesta) {
       mover1 = false;
       digitalWrite(PIN_MOTOR_ETI, LOW);
@@ -301,17 +260,12 @@ if (!detectada_botella && ir_low_stable) {
          millis() > (etiqueta_colocada + delay_etiqueta_contra)) {
     digitalWrite(PIN_MOTOR_CON, HIGH);
     if (inicio_motor_contra == 0) inicio_motor_contra = millis();
-
-    // Lectura estable de FC2
-    bool fc2_entre = isStableHigh(PIN_FC2);
-
+    bool fc2_entre = (digitalRead(PIN_FC2) == HIGH);
     if ((millis() > inicio_motor_contra + 200) && !contrapuesta) {
-      bool fc2_no_entre = isStableLow(PIN_FC2);
-      if ((FCentrecontras && fc2_no_entre) || (!FCentrecontras && fc2_entre)) {
+      if ((FCentrecontras && !fc2_entre) || (!FCentrecontras && fc2_entre)) {
         contrapuesta = true;
       }
     }
-
     if (fc2_entre && contrapuesta) {
       mover2 = false;
       digitalWrite(PIN_MOTOR_CON, LOW);
@@ -325,11 +279,6 @@ if (!detectada_botella && ir_low_stable) {
   if (etiquetapuesta && contrapuesta &&
       now > etiqueta_colocada + tiempo_parada_actuador &&
       now > contra_colocada + tiempo_parada_actuador) {
-
-    // Asegurar tiempo_total aunque no haya contra
-    unsigned long fin_ciclo = (contra_colocada != 0) ? contra_colocada : etiqueta_colocada;
-    tiempo_etiquetado = (fin_ciclo - llegada_botella) / 1000.0;
-
     digitalWrite(PIN_ACTUADOR, LOW);
     actuador_fuera = false;
     detectada_botella = false;
@@ -358,9 +307,8 @@ if (!detectada_botella && ir_low_stable) {
       last_botellas = botellas_etiquetadas;
     }
 
-    // Mostrar estado estable en LCD (bloquea ~10 ms como máximo)
-    int fc1v = isStableHigh(PIN_FC1) ? 1 : (isStableLow(PIN_FC1) ? 0 : (digitalRead(PIN_FC1)==HIGH));
-    int fc2v = isStableHigh(PIN_FC2) ? 1 : (isStableLow(PIN_FC2) ? 0 : (digitalRead(PIN_FC2)==HIGH));
+    int fc1v = (digitalRead(PIN_FC1) == HIGH) ? 1 : 0;
+    int fc2v = (digitalRead(PIN_FC2) == HIGH) ? 1 : 0;
     if (fc1v != last_fc1) { lcd_print_padded(4,1,  fc1v ? "HIGH" : "LOW ", 4); last_fc1 = fc1v; }
     if (fc2v != last_fc2) { lcd_print_padded(14,1, fc2v ? "HIGH" : "LOW ", 4); last_fc2 = fc2v; }
 

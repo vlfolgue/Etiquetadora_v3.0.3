@@ -1,0 +1,24 @@
+{
+	"folders": [
+		{
+			"path": "../Etiquetadora v04"
+		},
+		{
+			"name": "Avanzador Botellas v01",
+			"path": "../Avanzador Botellas v01"
+		},
+		{
+			"name": "Etiquetadora_v04_ESP32",
+			"path": "."
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"nema17": "c",
+			"accelstepper.h": "c",
+			"termistor": "c",
+			"tests": "c",
+			"*.tcc": "c"
+		}
+	}
+}

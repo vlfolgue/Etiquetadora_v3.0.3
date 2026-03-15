@@ -302,13 +302,18 @@ if (!detectada_botella && ir_low_stable) {
   detectada_botella = true;
   llegada_botella = now;
 
-  // Estado "entre" inicial con lectura estable de FCs
-  FCentreetiquetas = isStableHigh(PIN_FC1);
-  FCentrecontras   = isStableHigh(PIN_FC2);
+  // Estado "entre" inicial: HOME SIEMPRE ES HIGH (no capturar estado actual)
+  // FC1: HOME = HIGH, ETIQUETA = LOW
+  // FC2: HOME = HIGH, ETIQUETA = LOW
+  FCentreetiquetas = true;   // HOME es HIGH para FC1
+  FCentrecontras   = true;   // HOME es HIGH para FC2
 
-  // Inicializar máquina de estados: si arrancamos en ETIQUETA, ya la vimos
-  fc1_vio_etiqueta = !FCentreetiquetas;
-  fc2_vio_etiqueta = !FCentrecontras;
+  // Inicializar máquina de estados: si arrancamos con FC en ETIQUETA (LOW), ya la vimos
+  // Lectura rápida para saber estado actual
+  bool fc1_actual = (digitalRead(PIN_FC1) == HIGH);
+  bool fc2_actual = (digitalRead(PIN_FC2) == HIGH);
+  fc1_vio_etiqueta = !fc1_actual;  // Si está en LOW (no HOME), ya vimos etiqueta
+  fc2_vio_etiqueta = !fc2_actual;  // Si está en LOW (no HOME), ya vimos etiqueta
 }
 
 

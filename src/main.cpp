@@ -61,6 +61,10 @@ unsigned long etiqueta_colocada     = 0;
 unsigned long contra_colocada       = 0;
 unsigned long tiempo_actuador_fuera = 0;
 
+// Máquina de estados: rastrear si hemos visto ETIQUETA en este ciclo
+bool fc1_vio_etiqueta = false;
+bool fc2_vio_etiqueta = false;
+
 bool detectada_botella = false;
 bool botella_detectada_previa = false;
 bool actuador_fuera = false;
@@ -295,6 +299,10 @@ if (!detectada_botella && ir_low_stable) {
   // Estado "entre" inicial con lectura estable de FCs
   FCentreetiquetas = isStableHigh(PIN_FC1);
   FCentrecontras   = isStableHigh(PIN_FC2);
+
+  // Inicializar máquina de estados: si arrancamos en ETIQUETA, ya la vimos
+  fc1_vio_etiqueta = !FCentreetiquetas;
+  fc2_vio_etiqueta = !FCentrecontras;
 }
 
 
@@ -324,6 +332,8 @@ if (!detectada_botella && ir_low_stable) {
       mover1 = false;
       etiquetapuesta = false;
       contrapuesta = false;
+      fc1_vio_etiqueta = false;
+      fc2_vio_etiqueta = false;
       error_fc1_timeout = true;
       need_full_redraw = true;
       break;
@@ -331,17 +341,18 @@ if (!detectada_botella && ir_low_stable) {
 
     // UNA sola lectura digital rápida
     bool fc1_high = (digitalRead(PIN_FC1) == HIGH);
+    bool fc1_en_etiqueta = (fc1_high != FCentreetiquetas);
+    bool fc1_en_home = (fc1_high == FCentreetiquetas);
 
-    // Detectar flanco de etiqueta (etiqueta pasando)
-    if ((millis() > inicio_motor_etiqueta + MOTOR_IGNITION_MS) && !etiquetapuesta) {
-      if ((FCentreetiquetas && !fc1_high) || (!FCentreetiquetas && fc1_high)) {
-        etiquetapuesta = true;
-      }
+    // PASO 1: Registrar si vimos la etiqueta (cambio respecto a HOME)
+    if (!fc1_vio_etiqueta && fc1_en_etiqueta) {
+      fc1_vio_etiqueta = true;
     }
 
-    // Parada: FC volvió a HOME con lectura estable
-    if (etiquetapuesta && isStableLevel(PIN_FC1, FCentreetiquetas ? HIGH : LOW)) {
+    // PASO 2: Parar cuando: vimos ETIQUETA + ahora estamos en HOME estable
+    if (fc1_vio_etiqueta && fc1_en_home && isStableLevel(PIN_FC1, FCentreetiquetas ? HIGH : LOW)) {
       mover1 = false;
+      etiquetapuesta = true;
       digitalWrite(PIN_MOTOR_ETI, LOW);
       etiqueta_colocada = millis();
       inicio_motor_etiqueta = 0;
@@ -363,6 +374,8 @@ if (!detectada_botella && ir_low_stable) {
       mover2 = false;
       etiquetapuesta = false;
       contrapuesta = false;
+      fc1_vio_etiqueta = false;
+      fc2_vio_etiqueta = false;
       error_fc2_timeout = true;
       need_full_redraw = true;
       break;
@@ -370,17 +383,18 @@ if (!detectada_botella && ir_low_stable) {
 
     // UNA sola lectura digital rápida
     bool fc2_high = (digitalRead(PIN_FC2) == HIGH);
+    bool fc2_en_etiqueta = (fc2_high != FCentrecontras);
+    bool fc2_en_home = (fc2_high == FCentrecontras);
 
-    // Detectar flanco de contraetiqueta (contraetiqueta pasando)
-    if ((millis() > inicio_motor_contra + MOTOR_IGNITION_MS) && !contrapuesta) {
-      if ((FCentrecontras && !fc2_high) || (!FCentrecontras && fc2_high)) {
-        contrapuesta = true;
-      }
+    // PASO 1: Registrar si vimos la contraetiqueta (cambio respecto a HOME)
+    if (!fc2_vio_etiqueta && fc2_en_etiqueta) {
+      fc2_vio_etiqueta = true;
     }
 
-    // Parada: FC volvió a HOME con lectura estable
-    if (contrapuesta && isStableLevel(PIN_FC2, FCentrecontras ? HIGH : LOW)) {
+    // PASO 2: Parar cuando: vimos CONTRAETIQUETA + ahora estamos en HOME estable
+    if (fc2_vio_etiqueta && fc2_en_home && isStableLevel(PIN_FC2, FCentrecontras ? HIGH : LOW)) {
       mover2 = false;
+      contrapuesta = true;
       digitalWrite(PIN_MOTOR_CON, LOW);
       contra_colocada = millis();
       inicio_motor_contra = 0;
@@ -405,6 +419,8 @@ if (!detectada_botella && ir_low_stable) {
     tiempo_actuador_fuera = 0;
     inicio_motor_etiqueta = inicio_motor_contra = 0;
     etiquetapuesta = contrapuesta = false;
+    fc1_vio_etiqueta = false;
+    fc2_vio_etiqueta = false;
     botellas_etiquetadas++;
   }
 

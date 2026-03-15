@@ -36,7 +36,7 @@ const unsigned long DELAY_POST_ACTUADOR_MS = 50; // espera mínima tras extender
    ========================= */
 const unsigned long STABLE_MS = 5;           // tiempo que debe mantenerse sin variar
 const unsigned int  SAMPLE_US  = 200;        // periodo de muestreo durante la ventana
-const unsigned long STABLE_IR_MS = 100;  // ms que el IR debe mantenerse en LOW para confirmar botella real (anti-ruido)
+const unsigned long STABLE_IR_MS = 20;  // ms que el IR debe mantenerse en LOW para confirmar botella real (anti-ruido)
 
 
 inline bool isStableLevel(int pin, int targetLevel, unsigned long stable_ms = STABLE_MS) {
@@ -275,19 +275,25 @@ void loop() {
 const unsigned long now = millis();
 
 // 1) Detección botella con lectura ESTABLE (anti-ruido)
-bool ir_low_stable = isStableLow(PIN_IR_BOTELLA, STABLE_IR_MS);
+// Solo usar isStableLow cuando sea necesario (primer contacto)
+bool ir_low_stable = false;
+static bool ir_prev_high = true;  // Asumir que empieza en HIGH
+bool ir_current = digitalRead(PIN_IR_BOTELLA) == HIGH;
 
-if (ir_low_stable && !botella_detectada_previa) {
-  // Flanco de entrada confirmado y estable
-  botella_detectada_previa = true;
-}
-
-// Cuando deje de estar estable en LOW, confirmamos retorno estable a HIGH para rearmar
-if (!ir_low_stable) {
-  if (isStableHigh(PIN_IR_BOTELLA, STABLE_IR_MS)) {
-    botella_detectada_previa = false;  // listo para detectar la siguiente botella
+if (!ir_current && !botella_detectada_previa) {
+  // IR bajó (botella detectada) - confirmar con lectura estable
+  if (isStableLow(PIN_IR_BOTELLA, STABLE_IR_MS)) {
+    ir_low_stable = true;
+    botella_detectada_previa = true;
   }
 }
+
+// Cuando IR sube (botella sale) - permitir nueva detección
+if (ir_current && botella_detectada_previa && ir_prev_high == false) {
+  botella_detectada_previa = false;
+}
+
+ir_prev_high = ir_current;
 
 // Arranque de ciclo únicamente si la detección estable está presente
 if (!detectada_botella && ir_low_stable) {

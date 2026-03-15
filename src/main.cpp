@@ -274,7 +274,7 @@ void setup() {
   last_fc1 = fc1; last_fc2 = fc2;
 
   // Desplazados a la derecha para evitar píxeles dañados
-  lcd_print_int(16,2, delay_botella_actuador, 3);
+  lcd_print_int(15,2, delay_botella_actuador, 4);
   last_TAct = delay_botella_actuador;
   lcd_print_float(15,3, tiempo_etiquetado, 7, 2);
   last_TTotal = tiempo_etiquetado;
@@ -474,17 +474,17 @@ if (!detectada_botella && ir_low_stable) {
     if (ajustes_activos) {
       // MODO SET: Valores desplazados a la derecha (col 16) para evitar píxeles dañados
       if (delay_actuador_preview != last_TAct) {
-        lcd_print_int(16, 2, delay_actuador_preview, 3);
+        lcd_print_int(15, 2, delay_actuador_preview, 4);
         last_TAct = delay_actuador_preview;
       }
       if (delay_contra_preview   != last_TCtE) {
-        lcd_print_int(16, 3, delay_contra_preview, 3);
+        lcd_print_int(15, 3, delay_contra_preview, 4);
         last_TCtE = delay_contra_preview;
       }
     } else {
       // MODO NORMAL: Valores desplazados a la derecha para evitar píxeles dañados (cols 11-14)
       if (delay_botella_actuador != last_TAct) {
-        lcd_print_int(16, 2, delay_botella_actuador, 3);
+        lcd_print_int(15, 2, delay_botella_actuador, 4);
         last_TAct = delay_botella_actuador;
       }
       if (fabs(tiempo_etiquetado - last_TTotal) > 0.009f) {

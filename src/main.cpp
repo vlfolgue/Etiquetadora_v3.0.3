@@ -36,7 +36,7 @@ const unsigned long DELAY_POST_ACTUADOR_MS = 50; // espera mínima tras extender
    ========================= */
 const unsigned long STABLE_MS = 5;           // tiempo que debe mantenerse sin variar
 const unsigned int  SAMPLE_US  = 200;        // periodo de muestreo durante la ventana
-const unsigned long STABLE_IR_MS = 2;  // ms que el IR debe mantenerse en LOW (ajustable)
+const unsigned long STABLE_IR_MS = 100;  // ms que el IR debe mantenerse en LOW para confirmar botella real (anti-ruido)
 
 
 inline bool isStableLevel(int pin, int targetLevel, unsigned long stable_ms = STABLE_MS) {

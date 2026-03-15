@@ -162,8 +162,8 @@ void gestionar_ajustes() {
   if (ajustes_activos) {
     pot1_preview = filtrar_pot(analogRead(PIN_POT1), hist_pot1, idx_hist1);
     pot2_preview = filtrar_pot(analogRead(PIN_POT2), hist_pot2, idx_hist2);
-    delay_contra_preview   = map(pot1_preview, 0, 4095, 0, 1000);
-    delay_actuador_preview = map(pot2_preview, 0, 4095, 0, 1000);
+    delay_contra_preview   = map(pot1_preview, 0, 4095, 0, 1500);
+    delay_actuador_preview = map(pot2_preview, 0, 4095, 0, 1500);
   }
 }
 

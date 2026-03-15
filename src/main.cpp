@@ -79,7 +79,7 @@ float tiempo_etiquetado    = 0.0;
 /* =========================
    TIMEOUTS Y ERRORES
    ========================= */
-const unsigned long TIMEOUT_MOTOR_MS = 5000;  // 5 segundos máximo por motor
+const unsigned long TIMEOUT_MOTOR_MS = 10000;  // 10 segundos máximo por motor
 bool error_fc1_timeout = false;  // FC Etiquetas falló (timeout)
 bool error_fc2_timeout = false;  // FC Contras falló (timeout)
 
@@ -131,8 +131,20 @@ void gestionar_ajustes() {
       if (ajustes_btn_state) {
         // NUEVO: Si hay error, limpiar al presionar botón AJUSTES
         if (error_fc1_timeout || error_fc2_timeout) {
+          // Limpiar flags de error
           error_fc1_timeout = false;
           error_fc2_timeout = false;
+          // Resetear estado del ciclo completamente
+          detectada_botella = false;
+          botella_detectada_previa = false;
+          mover1 = mover2 = false;
+          etiquetapuesta = contrapuesta = false;
+          actuador_fuera = false;
+          fc1_vio_etiqueta = false;
+          fc2_vio_etiqueta = false;
+          llegada_botella = etiqueta_colocada = contra_colocada = 0;
+          tiempo_actuador_fuera = 0;
+          inicio_motor_etiqueta = inicio_motor_contra = 0;
           need_full_redraw = true;
         } else {
           ajustes_activos = true;

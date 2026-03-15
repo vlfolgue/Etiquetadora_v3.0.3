@@ -28,6 +28,9 @@ unsigned long delay_botella_etiqueta = 200;
 unsigned long delay_etiqueta_contra  = 0;
 unsigned long tiempo_parada_actuador = 300;
 
+const unsigned long MOTOR_IGNITION_MS     = 200;  // ventana de ignición para detectar flanco (era 200 ms)
+const unsigned long DELAY_POST_ACTUADOR_MS = 50; // espera mínima tras extender actuador
+
 /* =========================
    LECTURA ESTABLE FC (anti-ruido 5 ms)
    ========================= */
@@ -56,6 +59,7 @@ unsigned long inicio_motor_contra   = 0;
 unsigned long llegada_botella       = 0;
 unsigned long etiqueta_colocada     = 0;
 unsigned long contra_colocada       = 0;
+unsigned long tiempo_actuador_fuera = 0;
 
 bool detectada_botella = false;
 bool botella_detectada_previa = false;
@@ -256,7 +260,7 @@ void setup() {
   // Desplazados a la derecha para evitar píxeles dañados
   lcd_print_int(16,2, delay_botella_actuador, 3);
   last_TAct = delay_botella_actuador;
-  lcd_print_float(12,3, tiempo_etiquetado, 7, 2);
+  lcd_print_float(15,3, tiempo_etiquetado, 7, 2);
   last_TTotal = tiempo_etiquetado;
 }
 
@@ -271,7 +275,6 @@ bool ir_low_stable = isStableLow(PIN_IR_BOTELLA, STABLE_IR_MS);
 
 if (ir_low_stable && !botella_detectada_previa) {
   // Flanco de entrada confirmado y estable
-  llegada_botella = now;
   botella_detectada_previa = true;
 }
 
@@ -303,35 +306,41 @@ if (!detectada_botella && ir_low_stable) {
       now > (llegada_botella + delay_botella_actuador)) {
     digitalWrite(PIN_ACTUADOR, HIGH);
     actuador_fuera = true;
+    tiempo_actuador_fuera = now;
   }
 
   // 4) Motor etiquetas (entre=HIGH)
   while (mover1 && actuador_fuera && llegada_botella &&
-         millis() > (llegada_botella + delay_botella_etiqueta)) {
+         millis() > (tiempo_actuador_fuera + DELAY_POST_ACTUADOR_MS)) {
     digitalWrite(PIN_MOTOR_ETI, HIGH);
     if (inicio_motor_etiqueta == 0) inicio_motor_etiqueta = millis();
 
     // NUEVO: Verificar timeout (5 segundos máximo)
     if ((millis() - inicio_motor_etiqueta) > TIMEOUT_MOTOR_MS) {
       digitalWrite(PIN_MOTOR_ETI, LOW);
-      error_fc1_timeout = true;
+      digitalWrite(PIN_ACTUADOR, LOW);
+      actuador_fuera = false;
+      detectada_botella = false;
       mover1 = false;
+      etiquetapuesta = false;
+      contrapuesta = false;
+      error_fc1_timeout = true;
       need_full_redraw = true;
       break;
     }
 
-    // Lectura estable de FC1
-    bool fc1_entre = isStableHigh(PIN_FC1);
+    // UNA sola lectura digital rápida
+    bool fc1_high = (digitalRead(PIN_FC1) == HIGH);
 
-    if ((millis() > inicio_motor_etiqueta + 200) && !etiquetapuesta) {
-      // Cambio de estado estable respecto al "entre" inicial
-      bool fc1_no_entre = isStableLow(PIN_FC1);
-      if ((FCentreetiquetas && fc1_no_entre) || (!FCentreetiquetas && fc1_entre)) {
+    // Detectar flanco de etiqueta (etiqueta pasando)
+    if ((millis() > inicio_motor_etiqueta + MOTOR_IGNITION_MS) && !etiquetapuesta) {
+      if ((FCentreetiquetas && !fc1_high) || (!FCentreetiquetas && fc1_high)) {
         etiquetapuesta = true;
       }
     }
 
-    if (fc1_entre && etiquetapuesta) {
+    // Parada: FC volvió a HOME con lectura estable
+    if (etiquetapuesta && isStableLevel(PIN_FC1, FCentreetiquetas ? HIGH : LOW)) {
       mover1 = false;
       digitalWrite(PIN_MOTOR_ETI, LOW);
       etiqueta_colocada = millis();
@@ -348,23 +357,29 @@ if (!detectada_botella && ir_low_stable) {
     // NUEVO: Verificar timeout (5 segundos máximo)
     if ((millis() - inicio_motor_contra) > TIMEOUT_MOTOR_MS) {
       digitalWrite(PIN_MOTOR_CON, LOW);
-      error_fc2_timeout = true;
+      digitalWrite(PIN_ACTUADOR, LOW);
+      actuador_fuera = false;
+      detectada_botella = false;
       mover2 = false;
+      etiquetapuesta = false;
+      contrapuesta = false;
+      error_fc2_timeout = true;
       need_full_redraw = true;
       break;
     }
 
-    // Lectura estable de FC2
-    bool fc2_entre = isStableHigh(PIN_FC2);
+    // UNA sola lectura digital rápida
+    bool fc2_high = (digitalRead(PIN_FC2) == HIGH);
 
-    if ((millis() > inicio_motor_contra + 200) && !contrapuesta) {
-      bool fc2_no_entre = isStableLow(PIN_FC2);
-      if ((FCentrecontras && fc2_no_entre) || (!FCentrecontras && fc2_entre)) {
+    // Detectar flanco de contraetiqueta (contraetiqueta pasando)
+    if ((millis() > inicio_motor_contra + MOTOR_IGNITION_MS) && !contrapuesta) {
+      if ((FCentrecontras && !fc2_high) || (!FCentrecontras && fc2_high)) {
         contrapuesta = true;
       }
     }
 
-    if (fc2_entre && contrapuesta) {
+    // Parada: FC volvió a HOME con lectura estable
+    if (contrapuesta && isStableLevel(PIN_FC2, FCentrecontras ? HIGH : LOW)) {
       mover2 = false;
       digitalWrite(PIN_MOTOR_CON, LOW);
       contra_colocada = millis();
@@ -387,6 +402,7 @@ if (!detectada_botella && ir_low_stable) {
     detectada_botella = false;
     botella_detectada_previa = false;
     llegada_botella = etiqueta_colocada = contra_colocada = 0;
+    tiempo_actuador_fuera = 0;
     inicio_motor_etiqueta = inicio_motor_contra = 0;
     etiquetapuesta = contrapuesta = false;
     botellas_etiquetadas++;
@@ -433,7 +449,7 @@ if (!detectada_botella && ir_low_stable) {
         last_TAct = delay_botella_actuador;
       }
       if (fabs(tiempo_etiquetado - last_TTotal) > 0.009f) {
-        lcd_print_float(12, 3, tiempo_etiquetado, 7, 2);
+        lcd_print_float(15, 3, tiempo_etiquetado, 7, 2);
         last_TTotal = tiempo_etiquetado;
       }
     }

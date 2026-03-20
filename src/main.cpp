@@ -346,8 +346,12 @@ if (!detectada_botella && ir_low_stable) {
   }
 
   // 4) Motor etiquetas (entre=HIGH)
-  while (mover1 && actuador_fuera && llegada_botella &&
-         millis() > (tiempo_actuador_fuera + DELAY_POST_ACTUADOR_MS)) {
+  // GARANTÍA: P26 solo puede ir a HIGH si hay botella detectada
+  if (!detectada_botella) {
+    digitalWrite(PIN_MOTOR_ETI, LOW);
+  } else if (mover1 && actuador_fuera && llegada_botella &&
+             millis() > (tiempo_actuador_fuera + DELAY_POST_ACTUADOR_MS)) {
+    // while convertido a if para evitar bloqueos
     digitalWrite(PIN_MOTOR_ETI, HIGH);
     if (inicio_motor_etiqueta == 0) inicio_motor_etiqueta = millis();
 
@@ -364,8 +368,8 @@ if (!detectada_botella && ir_low_stable) {
       fc2_vio_etiqueta = false;
       error_fc1_timeout = true;
       need_full_redraw = true;
-      break;
-    }
+    } else {
+      // Continuar con detección si no hay timeout
 
     // UNA sola lectura digital rápida
     bool fc1_high = (digitalRead(PIN_FC1) == HIGH);
@@ -377,19 +381,23 @@ if (!detectada_botella && ir_low_stable) {
       fc1_vio_etiqueta = true;
     }
 
-    // PASO 2: Parar cuando: vimos ETIQUETA + ahora estamos en HOME estable
-    if (fc1_vio_etiqueta && fc1_en_home && isStableLevel(PIN_FC1, FCentreetiquetas ? HIGH : LOW)) {
-      mover1 = false;
-      etiquetapuesta = true;
-      digitalWrite(PIN_MOTOR_ETI, LOW);
-      etiqueta_colocada = millis();
-      inicio_motor_etiqueta = 0;
+      // PASO 2: Parar cuando: vimos ETIQUETA + ahora estamos en HOME estable
+      if (fc1_vio_etiqueta && fc1_en_home && isStableLevel(PIN_FC1, FCentreetiquetas ? HIGH : LOW)) {
+        mover1 = false;
+        etiquetapuesta = true;
+        digitalWrite(PIN_MOTOR_ETI, LOW);
+        etiqueta_colocada = millis();
+        inicio_motor_etiqueta = 0;
+      }
     }
   }
 
   // 5) Motor contras (entre=HIGH)
-  while (mover2 && etiquetapuesta && llegada_botella &&
-         millis() > (etiqueta_colocada + delay_etiqueta_contra)) {
+  // GARANTÍA: P27 solo puede ir a HIGH si hay botella detectada
+  if (!detectada_botella) {
+    digitalWrite(PIN_MOTOR_CON, LOW);
+  } else if (mover2 && etiquetapuesta && llegada_botella &&
+             millis() > (etiqueta_colocada + delay_etiqueta_contra)) {
     digitalWrite(PIN_MOTOR_CON, HIGH);
     if (inicio_motor_contra == 0) inicio_motor_contra = millis();
 
@@ -406,27 +414,27 @@ if (!detectada_botella && ir_low_stable) {
       fc2_vio_etiqueta = false;
       error_fc2_timeout = true;
       need_full_redraw = true;
-      break;
-    }
+    } else {
+      // Continuar con detección si no hay timeout
+      // UNA sola lectura digital rápida
+      bool fc2_high = (digitalRead(PIN_FC2) == HIGH);
+      bool fc2_en_etiqueta = (fc2_high != FCentrecontras);
+      bool fc2_en_home = (fc2_high == FCentrecontras);
 
-    // UNA sola lectura digital rápida
-    bool fc2_high = (digitalRead(PIN_FC2) == HIGH);
-    bool fc2_en_etiqueta = (fc2_high != FCentrecontras);
-    bool fc2_en_home = (fc2_high == FCentrecontras);
+      // PASO 1: Registrar si vimos la contraetiqueta (cambio respecto a HOME)
+      if (!fc2_vio_etiqueta && fc2_en_etiqueta) {
+        fc2_vio_etiqueta = true;
+      }
 
-    // PASO 1: Registrar si vimos la contraetiqueta (cambio respecto a HOME)
-    if (!fc2_vio_etiqueta && fc2_en_etiqueta) {
-      fc2_vio_etiqueta = true;
-    }
-
-    // PASO 2: Parar cuando: vimos CONTRAETIQUETA + ahora estamos en HOME estable
-    if (fc2_vio_etiqueta && fc2_en_home && isStableLevel(PIN_FC2, FCentrecontras ? HIGH : LOW)) {
-      mover2 = false;
-      contrapuesta = true;
-      digitalWrite(PIN_MOTOR_CON, LOW);
-      contra_colocada = millis();
-      inicio_motor_contra = 0;
-      tiempo_etiquetado = (contra_colocada - llegada_botella) / 1000.0;
+      // PASO 2: Parar cuando: vimos CONTRAETIQUETA + ahora estamos en HOME estable
+      if (fc2_vio_etiqueta && fc2_en_home && isStableLevel(PIN_FC2, FCentrecontras ? HIGH : LOW)) {
+        mover2 = false;
+        contrapuesta = true;
+        digitalWrite(PIN_MOTOR_CON, LOW);
+        contra_colocada = millis();
+        inicio_motor_contra = 0;
+        tiempo_etiquetado = (contra_colocada - llegada_botella) / 1000.0;
+      }
     }
   }
 

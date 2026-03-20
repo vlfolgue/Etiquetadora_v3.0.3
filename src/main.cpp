@@ -246,6 +246,7 @@ void setup() {
 
   pinMode(PIN_ACTUADOR, OUTPUT);  digitalWrite(PIN_ACTUADOR, LOW);
   pinMode(PIN_MOTOR_ETI, OUTPUT); digitalWrite(PIN_MOTOR_ETI, LOW);
+  digitalWrite(PIN_MOTOR_ETI, LOW);  // DOBLE GARANTÍA: P26 DEBE estar en LOW
   pinMode(PIN_MOTOR_CON, OUTPUT); digitalWrite(PIN_MOTOR_CON, LOW);
 
   // Lectura inicial potenciómetros
@@ -285,6 +286,10 @@ void setup() {
    ========================= */
 void loop() {
 const unsigned long now = millis();
+
+// GARANTÍA CRÍTICA P26: Forzar a LOW en CADA iteración
+// (Evita que quede en estado indefinido con ESP32 conectada)
+digitalWrite(PIN_MOTOR_ETI, LOW);
 
 // 1) Detección botella con lectura ESTABLE (anti-ruido)
 // Solo usar isStableLow cuando sea necesario (primer contacto)

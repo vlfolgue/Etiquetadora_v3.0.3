@@ -352,8 +352,15 @@ if (!detectada_botella && ir_low_stable) {
   } else if (mover1 && actuador_fuera && llegada_botella &&
              millis() > (tiempo_actuador_fuera + DELAY_POST_ACTUADOR_MS)) {
     // while convertido a if para evitar bloqueos
-    digitalWrite(PIN_MOTOR_ETI, HIGH);
-    if (inicio_motor_etiqueta == 0) inicio_motor_etiqueta = millis();
+    // TRIPLE GARANTÍA: Verificar estado ANTES de subir
+    if (detectada_botella && mover1) {
+      digitalWrite(PIN_MOTOR_ETI, HIGH);
+    } else {
+      // Si algo está mal, FORZAR LOW inmediatamente
+      digitalWrite(PIN_MOTOR_ETI, LOW);
+      mover1 = false;
+    }
+    if (inicio_motor_etiqueta == 0 && digitalRead(PIN_MOTOR_ETI) == HIGH) inicio_motor_etiqueta = millis();
 
     // NUEVO: Verificar timeout (5 segundos máximo)
     if ((millis() - inicio_motor_etiqueta) > TIMEOUT_MOTOR_MS) {
@@ -398,7 +405,14 @@ if (!detectada_botella && ir_low_stable) {
     digitalWrite(PIN_MOTOR_CON, LOW);
   } else if (mover2 && etiquetapuesta && llegada_botella &&
              millis() > (etiqueta_colocada + delay_etiqueta_contra)) {
-    digitalWrite(PIN_MOTOR_CON, HIGH);
+    // TRIPLE GARANTÍA: Verificar estado ANTES de subir
+    if (detectada_botella && mover2) {
+      digitalWrite(PIN_MOTOR_CON, HIGH);
+    } else {
+      // Si algo está mal, FORZAR LOW inmediatamente
+      digitalWrite(PIN_MOTOR_CON, LOW);
+      mover2 = false;
+    }
     if (inicio_motor_contra == 0) inicio_motor_contra = millis();
 
     // NUEVO: Verificar timeout (5 segundos máximo)

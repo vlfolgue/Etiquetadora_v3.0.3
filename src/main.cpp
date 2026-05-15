@@ -192,18 +192,20 @@ void lcd_print_float(int col, int row, float val, int width, int decimals=2) {
 
 void lcd_draw_static_labels(bool set_mode) {
   lcd.clear();
+  lcd.home();
 
   // Si hay error de timeout en FC, mostrar alerta
   if (error_fc1_timeout || error_fc2_timeout) {
-    lcd.setCursor(0,0); lcd.print("!! FALLO DE SENSOR !!");
+    //       "01234567890123456789"
+    lcd.setCursor(0,0); lcd.print("!! FALLO DE SENSOR!!");  // 20
     if (error_fc1_timeout) {
-      lcd.setCursor(0,1); lcd.print("Motor ETIQUETAS parado");
-      lcd.setCursor(0,2); lcd.print("FC1 no detecto posic.");
+      lcd.setCursor(0,1); lcd.print("Motor ETI parado    ");  // 20
+      lcd.setCursor(0,2); lcd.print("FC1: no llego HOME  ");  // 20
     } else {
-      lcd.setCursor(0,1); lcd.print("Motor CONTRAS parado");
-      lcd.setCursor(0,2); lcd.print("FC2 no detecto posic.");
+      lcd.setCursor(0,1); lcd.print("Motor CON parado    ");  // 20
+      lcd.setCursor(0,2); lcd.print("FC2: no llego HOME  ");  // 20
     }
-    lcd.setCursor(0,3); lcd.print("Pulsa AJUSTES p.borrar");
+    lcd.setCursor(0,3); lcd.print("Pulsa AJUSTES=borrar");   // 20
     return;
   }
 

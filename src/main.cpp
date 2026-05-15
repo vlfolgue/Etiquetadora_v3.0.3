@@ -24,11 +24,9 @@ const int PIN_ACTUADOR    = 16;
    PARÁMETROS AJUSTABLES
    ========================= */
 unsigned long delay_botella_actuador = 0;
-unsigned long delay_botella_etiqueta = 200;
 unsigned long delay_etiqueta_contra  = 0;
 unsigned long tiempo_parada_actuador = 300;
 
-const unsigned long MOTOR_IGNITION_MS     = 200;  // ventana de ignición para detectar flanco (era 200 ms)
 const unsigned long DELAY_POST_ACTUADOR_MS = 50; // espera mínima tras extender actuador
 
 /* =========================
@@ -147,7 +145,7 @@ void gestionar_ajustes() {
           tiempo_actuador_fuera = 0;
           inicio_motor_etiqueta = inicio_motor_contra = 0;
           need_full_redraw = true;
-        } else {
+        } else if (!detectada_botella) {
           ajustes_activos = true;
           need_full_redraw = true;
         }
@@ -163,8 +161,8 @@ void gestionar_ajustes() {
   if (ajustes_activos) {
     pot1_preview = filtrar_pot(analogRead(PIN_POT1), hist_pot1, idx_hist1);
     pot2_preview = filtrar_pot(analogRead(PIN_POT2), hist_pot2, idx_hist2);
-    delay_contra_preview   = map(pot1_preview, 0, 4095, 0, 1500);
-    delay_actuador_preview = map(pot2_preview, 0, 4095, 0, 1500);
+    delay_contra_preview   = map(pot1_preview, 0, 4095, 0, 2000);
+    delay_actuador_preview = map(pot2_preview, 0, 4095, 0, 2000);
   }
 }
 
@@ -258,8 +256,8 @@ void setup() {
   }
   int p1_init = filtrar_pot(analogRead(PIN_POT1), hist_pot1, idx_hist1);
   int p2_init = filtrar_pot(analogRead(PIN_POT2), hist_pot2, idx_hist2);
-  delay_etiqueta_contra  = map(p1_init, 0, 4095, 0, 1000);
-  delay_botella_actuador = map(p2_init, 0, 4095, 0, 1000);
+  delay_etiqueta_contra  = map(p1_init, 0, 4095, 0, 2000);
+  delay_botella_actuador = map(p2_init, 0, 4095, 0, 2000);
 
   lcd_draw_static_labels(false);
   last_ajustes_activos = false;
@@ -317,8 +315,10 @@ ir_prev_high = ir_current;
 
 // Arranque de ciclo únicamente si la detección estable está presente
 if (!detectada_botella && ir_low_stable) {
-  mover1 = mover2 = true;
-  etiquetapuesta = contrapuesta = false;
+  mover1 = true;
+  mover2 = (digitalRead(PIN_BTN_CONTRAS) == HIGH);  // leer UNA sola vez al inicio del ciclo
+  etiquetapuesta = false;
+  contrapuesta   = !mover2;
   detectada_botella = true;
   llegada_botella = now;
 
@@ -337,10 +337,8 @@ if (!detectada_botella && ir_low_stable) {
 }
 
 
-  // 2) Selector contras
-  if (digitalRead(PIN_BTN_CONTRAS) == LOW) { mover2 = false; contrapuesta = true; }
+  // 2) Actuador
 
-  // 3) Actuador
   if (mover1 && !actuador_fuera && llegada_botella &&
       now > (llegada_botella + delay_botella_actuador)) {
     digitalWrite(PIN_ACTUADOR, HIGH);
@@ -348,7 +346,7 @@ if (!detectada_botella && ir_low_stable) {
     tiempo_actuador_fuera = now;
   }
 
-  // 4) Motor etiquetas (entre=HIGH)
+  // 3) Motor etiquetas (entre=HIGH)
   // GARANTÍA: P26 solo puede ir a HIGH si hay botella detectada
   if (!detectada_botella) {
     digitalWrite(PIN_MOTOR_ETI, LOW);
@@ -402,7 +400,7 @@ if (!detectada_botella && ir_low_stable) {
     }
   }
 
-  // 5) Motor contras (entre=HIGH)
+  // 4) Motor contras (entre=HIGH)
   // GARANTÍA: P27 solo puede ir a HIGH si hay botella detectada
   if (!detectada_botella) {
     digitalWrite(PIN_MOTOR_CON, LOW);
@@ -455,7 +453,7 @@ if (!detectada_botella && ir_low_stable) {
     }
   }
 
-  // 6) Parar actuador
+  // 5) Parar actuador
   if (etiquetapuesta && contrapuesta &&
       now > etiqueta_colocada + tiempo_parada_actuador &&
       now > contra_colocada + tiempo_parada_actuador) {
@@ -477,7 +475,7 @@ if (!detectada_botella && ir_low_stable) {
     botellas_etiquetadas++;
   }
 
-  // 7) Ajustes + LCD
+  // 6) Ajustes + LCD
   gestionar_ajustes();
   if (need_full_redraw || last_ajustes_activos != ajustes_activos) {
     lcd_draw_static_labels(ajustes_activos);

@@ -343,11 +343,11 @@ if (!detectada_botella && ir_low_stable) {
   FCentrecontras   = true;   // HOME es HIGH para FC2
 
   // Inicializar máquina de estados: si arrancamos con FC en ETIQUETA (LOW), ya la vimos
-  // Lectura rápida para saber estado actual
-  bool fc1_actual = (digitalRead(PIN_FC1) == HIGH);
-  bool fc2_actual = (digitalRead(PIN_FC2) == HIGH);
-  fc1_vio_etiqueta = !fc1_actual;  // Si está en LOW (no HOME), ya vimos etiqueta
-  fc2_vio_etiqueta = !fc2_actual;  // Si está en LOW (no HOME), ya vimos etiqueta
+  // Lectura estable para evitar que ruido en GPIO34/35 dé estado incorrecto al inicio
+  bool fc1_actual = isStableLevel(PIN_FC1, HIGH);   // true = estable en HOME
+  bool fc2_actual = isStableLevel(PIN_FC2, HIGH);   // true = estable en HOME
+  fc1_vio_etiqueta = !fc1_actual;  // Si NO está en HOME → ya vimos etiqueta
+  fc2_vio_etiqueta = !fc2_actual;  // Si NO está en HOME → ya vimos etiqueta
 }
 
 
@@ -375,7 +375,7 @@ if (!detectada_botella && ir_low_stable) {
       digitalWrite(PIN_MOTOR_ETI, LOW);
       mover1 = false;
     }
-    if (inicio_motor_etiqueta == 0 && digitalRead(PIN_MOTOR_ETI) == HIGH) inicio_motor_etiqueta = millis();
+    if (inicio_motor_etiqueta == 0) inicio_motor_etiqueta = millis();
 
     // NUEVO: Verificar timeout (5 segundos máximo)
     if ((millis() - inicio_motor_etiqueta) > TIMEOUT_MOTOR_MS) {
@@ -398,8 +398,8 @@ if (!detectada_botella && ir_low_stable) {
     bool fc1_en_etiqueta = (fc1_high != FCentreetiquetas);
     bool fc1_en_home = (fc1_high == FCentreetiquetas);
 
-    // PASO 1: Registrar si vimos la etiqueta (cambio respecto a HOME)
-    if (!fc1_vio_etiqueta && fc1_en_etiqueta) {
+    // PASO 1: Registrar si vimos la etiqueta (cambio respecto a HOME) — requiere nivel estable 5ms
+    if (!fc1_vio_etiqueta && fc1_en_etiqueta && isStableLevel(PIN_FC1, FCentreetiquetas ? LOW : HIGH)) {
       fc1_vio_etiqueta = true;
     }
 
@@ -450,8 +450,8 @@ if (!detectada_botella && ir_low_stable) {
       bool fc2_en_etiqueta = (fc2_high != FCentrecontras);
       bool fc2_en_home = (fc2_high == FCentrecontras);
 
-      // PASO 1: Registrar si vimos la contraetiqueta (cambio respecto a HOME)
-      if (!fc2_vio_etiqueta && fc2_en_etiqueta) {
+      // PASO 1: Registrar si vimos la contraetiqueta (cambio respecto a HOME) — requiere nivel estable 5ms
+      if (!fc2_vio_etiqueta && fc2_en_etiqueta && isStableLevel(PIN_FC2, FCentrecontras ? LOW : HIGH)) {
         fc2_vio_etiqueta = true;
       }
 

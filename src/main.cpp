@@ -255,14 +255,15 @@ void setup() {
   lcd.setCursor(0,0); lcd.print("Iniciando sistema");
 
   pinMode(PIN_IR_BOTELLA,  INPUT);
-  pinMode(PIN_FC1,         INPUT);
-  pinMode(PIN_FC2,         INPUT);
-  pinMode(PIN_BTN_CONTRAS, INPUT);
-  pinMode(PIN_BTN_AJUSTES, INPUT);
+  pinMode(PIN_FC1,         INPUT);           // GPIO34 — input-only, sin pull interno
+  pinMode(PIN_FC2,         INPUT);           // GPIO35 — input-only, sin pull interno
+  pinMode(PIN_BTN_CONTRAS, INPUT_PULLUP);    // GPIO25 activo-LOW: pull-up interno garantiza HIGH en reposo
+  pinMode(PIN_BTN_AJUSTES, INPUT_PULLDOWN);  // GPIO19 activo-HIGH: pull-down interno garantiza LOW en reposo
 
+  // GPIO26 = DAC2: desactivar explícitamente antes de usarlo como digital output
+  dacDisable(PIN_MOTOR_ETI);
   pinMode(PIN_ACTUADOR, OUTPUT);  digitalWrite(PIN_ACTUADOR, LOW);
   pinMode(PIN_MOTOR_ETI, OUTPUT); digitalWrite(PIN_MOTOR_ETI, LOW);
-  digitalWrite(PIN_MOTOR_ETI, LOW);  // DOBLE GARANTÍA: P26 DEBE estar en LOW
   pinMode(PIN_MOTOR_CON, OUTPUT); digitalWrite(PIN_MOTOR_CON, LOW);
 
   // Lectura inicial potenciómetros

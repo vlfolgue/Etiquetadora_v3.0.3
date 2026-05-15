@@ -195,20 +195,15 @@ void lcd_draw_static_labels(bool set_mode) {
 
   // Si hay error de timeout en FC, mostrar alerta
   if (error_fc1_timeout || error_fc2_timeout) {
-    lcd.setCursor(0,0); lcd.print("Botellas:");
-    lcd.setCursor(0,1); lcd.print("FC1: ");
-    lcd.setCursor(5,1); lcd.print(error_fc1_timeout ? "FAIL" : "OK  ");
-    lcd.setCursor(10,1); lcd.print("FC2: ");
-    lcd.setCursor(15,1); lcd.print(error_fc2_timeout ? "FAIL" : "OK  ");
-
-    lcd.setCursor(0,2);
+    lcd.setCursor(0,0); lcd.print("!! FALLO DE SENSOR !!");
     if (error_fc1_timeout) {
-      lcd.print("ERROR: FC Etiquetas");
+      lcd.setCursor(0,1); lcd.print("Motor ETIQUETAS parado");
+      lcd.setCursor(0,2); lcd.print("FC1 no detecto posic.");
     } else {
-      lcd.print("ERROR: FC Contras");
+      lcd.setCursor(0,1); lcd.print("Motor CONTRAS parado");
+      lcd.setCursor(0,2); lcd.print("FC2 no detecto posic.");
     }
-
-    lcd.setCursor(0,3); lcd.print("Presiona AJUSTES");
+    lcd.setCursor(0,3); lcd.print("Pulsa AJUSTES p.borrar");
     return;
   }
 

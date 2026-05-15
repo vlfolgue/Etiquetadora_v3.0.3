@@ -210,13 +210,13 @@ void lcd_draw_static_labels(bool set_mode) {
   if (set_mode) {
     lcd.setCursor(0,0); lcd.print("** MODO AJUSTES **  ");
     lcd.setCursor(0,1); lcd.print("FC1:     FC2:       ");
-    lcd.setCursor(0,2); lcd.print("T.Act(ms):          ");
-    lcd.setCursor(0,3); lcd.print("T.Ctra(ms):         ");
+    lcd.setCursor(0,2); lcd.print("T.Ctra(ms):         ");
+    lcd.setCursor(0,3); lcd.print("T.Act(ms):          ");
   } else {
     lcd.setCursor(0,0); lcd.print("Botellas:           ");
     lcd.setCursor(0,1); lcd.print("FC1:     FC2:       ");
-    lcd.setCursor(0,2); lcd.print("T.Act(ms):          ");
-    lcd.setCursor(0,3); lcd.print("T.Ciclo(s):         ");
+    lcd.setCursor(0,2); lcd.print("T.Ctra(ms):         ");
+    lcd.setCursor(0,3); lcd.print("T.Act(ms):          ");
   }
 }
 
@@ -269,9 +269,9 @@ void setup() {
   lcd_print_padded(14, 1, fc2==1 ? "HIGH" : "LOW ", 4);
   last_fc1 = fc1; last_fc2 = fc2;
 
-  lcd_print_int(15, 2, delay_botella_actuador, 5);
+  lcd_print_int(15, 3, delay_botella_actuador, 5);
   last_TAct = delay_botella_actuador;
-  lcd_print_float(15, 3, tiempo_etiquetado, 5, 2);
+  lcd_print_float(15, 2, tiempo_etiquetado, 5, 2);
   last_TTotal = tiempo_etiquetado;
 }
 
@@ -488,22 +488,22 @@ if (!detectada_botella && ir_low_stable) {
     if (fc2v != last_fc2) { lcd_print_padded(14, 1, fc2v ? "HIGH" : "LOW ", 4); last_fc2 = fc2v; }
 
     if (ajustes_activos) {
-      if (delay_actuador_preview != last_TAct) {
-        lcd_print_int(15, 2, delay_actuador_preview, 5);
-        last_TAct = delay_actuador_preview;
-      }
       if (delay_contra_preview != last_TCtE) {
-        lcd_print_int(15, 3, delay_contra_preview, 5);
+        lcd_print_int(15, 2, delay_contra_preview, 5);
         last_TCtE = delay_contra_preview;
       }
-    } else {
-      if (delay_botella_actuador != last_TAct) {
-        lcd_print_int(15, 2, delay_botella_actuador, 5);
-        last_TAct = delay_botella_actuador;
+      if (delay_actuador_preview != last_TAct) {
+        lcd_print_int(15, 3, delay_actuador_preview, 5);
+        last_TAct = delay_actuador_preview;
       }
+    } else {
       if (fabs(tiempo_etiquetado - last_TTotal) > 0.009f) {
-        lcd_print_float(15, 3, tiempo_etiquetado, 5, 2);
+        lcd_print_float(15, 2, tiempo_etiquetado, 5, 2);
         last_TTotal = tiempo_etiquetado;
+      }
+      if (delay_botella_actuador != last_TAct) {
+        lcd_print_int(15, 3, delay_botella_actuador, 5);
+        last_TAct = delay_botella_actuador;
       }
     }
   }

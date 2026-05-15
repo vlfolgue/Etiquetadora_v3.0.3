@@ -482,7 +482,7 @@ if (!detectada_botella && ir_low_stable) {
     last_TAct = -1; last_TCtE = -1; last_TTotal = -1.0f;
   }
 
-  if (now - ultimo_refresco_lcd >= intervalo_lcd_idle) {
+  if (now - ultimo_refresco_lcd >= intervalo_lcd_idle && !error_fc1_timeout && !error_fc2_timeout) {
     ultimo_refresco_lcd = now;
 
     if (botellas_etiquetadas != last_botellas) {

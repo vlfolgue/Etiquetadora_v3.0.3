@@ -75,6 +75,30 @@ int   botellas_etiquetadas = 0;
 float tiempo_etiquetado    = 0.0;
 
 /* =========================
+   VELOCIDAD (Bot/h) - media últimas 30 botellas
+   ========================= */
+const int BPH_SAMPLES = 30;
+unsigned long bph_timestamps[BPH_SAMPLES] = {0};
+int   bph_idx   = 0;
+int   bph_count = 0;
+float botellas_por_hora = 0.0f;
+float last_bph = -1.0f;
+
+void registrar_botella_completada() {
+  bph_timestamps[bph_idx] = millis();
+  bph_idx = (bph_idx + 1) % BPH_SAMPLES;
+  if (bph_count < BPH_SAMPLES) bph_count++;
+
+  if (bph_count >= 2) {
+    int first_idx = (bph_count < BPH_SAMPLES) ? 0 : bph_idx;
+    int last_idx  = (bph_idx - 1 + BPH_SAMPLES) % BPH_SAMPLES;
+    unsigned long span_ms = bph_timestamps[last_idx] - bph_timestamps[first_idx];
+    if (span_ms > 0)
+      botellas_por_hora = (float)(bph_count - 1) * 3600000.0f / (float)span_ms;
+  }
+}
+
+/* =========================
    TIMEOUTS Y ERRORES
    ========================= */
 const unsigned long TIMEOUT_MOTOR_MS = 10000;  // 10 segundos máximo por motor
@@ -215,8 +239,8 @@ void lcd_draw_static_labels(bool set_mode) {
   } else {
     lcd.setCursor(0,0); lcd.print("Botellas:           ");
     lcd.setCursor(0,1); lcd.print("FC1:     FC2:       ");
-    lcd.setCursor(0,2); lcd.print("T.Ctra(ms):         ");
-    lcd.setCursor(0,3); lcd.print("T.Act(ms):          ");
+    lcd.setCursor(0,2); lcd.print("Bot/h:              ");
+    lcd.setCursor(0,3); lcd.print("T.Ciclo(s):         ");
   }
 }
 
@@ -462,6 +486,7 @@ if (!detectada_botella && ir_low_stable) {
     fc1_vio_etiqueta = false;
     fc2_vio_etiqueta = false;
     botellas_etiquetadas++;
+    registrar_botella_completada();
   }
 
   // 6) Ajustes + LCD
@@ -471,10 +496,10 @@ if (!detectada_botella && ir_low_stable) {
     need_full_redraw = false;
     last_ajustes_activos = ajustes_activos;
     last_botellas = -1; last_fc1 = -1; last_fc2 = -1;
-    last_TAct = -1; last_TCtE = -1; last_TTotal = -1.0f;
+    last_TAct = -1; last_TCtE = -1; last_TTotal = -1.0f; last_bph = -1.0f;
   }
 
-  if (now - ultimo_refresco_lcd >= intervalo_lcd_idle && !error_fc1_timeout && !error_fc2_timeout) {
+  if (now - ultimo_refresco_lcd >= intervalo_lcd_idle && !error_fc1_timeout && !error_fc2_timeout && !detectada_botella) {
     ultimo_refresco_lcd = now;
 
     if (!ajustes_activos && botellas_etiquetadas != last_botellas) {
@@ -497,13 +522,13 @@ if (!detectada_botella && ir_low_stable) {
         last_TAct = delay_actuador_preview;
       }
     } else {
-      if (fabs(tiempo_etiquetado - last_TTotal) > 0.009f) {
-        lcd_print_float(15, 2, tiempo_etiquetado, 5, 2);
-        last_TTotal = tiempo_etiquetado;
+      if (fabs(botellas_por_hora - last_bph) > 0.5f) {
+        lcd_print_int(15, 2, (long)botellas_por_hora, 5);
+        last_bph = botellas_por_hora;
       }
-      if (delay_botella_actuador != last_TAct) {
-        lcd_print_int(15, 3, delay_botella_actuador, 5);
-        last_TAct = delay_botella_actuador;
+      if (fabs(tiempo_etiquetado - last_TTotal) > 0.009f) {
+        lcd_print_float(15, 3, tiempo_etiquetado, 5, 2);
+        last_TTotal = tiempo_etiquetado;
       }
     }
   }

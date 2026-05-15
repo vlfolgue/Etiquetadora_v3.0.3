@@ -106,7 +106,6 @@ int   last_fc1 = -1, last_fc2 = -1;
 long  last_TAct = -1, last_TCtE = -1;
 float last_TTotal = -1.0f;
 bool  need_full_redraw = true;
-int   last_p26_state = -1;  // Estado anterior de P26 para actualizar LCD
 
 int filtrar_pot(int nuevo, int* hist, int &idx) {
   hist[idx] = nuevo;
@@ -192,35 +191,32 @@ void lcd_print_float(int col, int row, float val, int width, int decimals=2) {
 
 void lcd_draw_static_labels(bool set_mode) {
   lcd.clear();
-  lcd.home();
+  delay(5);  // esperar a que el LCD procese el clear antes de escribir
 
-  // Si hay error de timeout en FC, mostrar alerta
+  //         "01234567890123456789"
   if (error_fc1_timeout || error_fc2_timeout) {
-    //       "01234567890123456789"
-    lcd.setCursor(0,0); lcd.print("!! FALLO DE SENSOR!!");  // 20
+    lcd.setCursor(0,0); lcd.print("!! FALLO DE SENSOR!!");
     if (error_fc1_timeout) {
-      lcd.setCursor(0,1); lcd.print("Motor ETI parado    ");  // 20
-      lcd.setCursor(0,2); lcd.print("FC1: no llego HOME  ");  // 20
+      lcd.setCursor(0,1); lcd.print("Motor ETI parado    ");
+      lcd.setCursor(0,2); lcd.print("FC1: no llego HOME  ");
     } else {
-      lcd.setCursor(0,1); lcd.print("Motor CON parado    ");  // 20
-      lcd.setCursor(0,2); lcd.print("FC2: no llego HOME  ");  // 20
+      lcd.setCursor(0,1); lcd.print("Motor CON parado    ");
+      lcd.setCursor(0,2); lcd.print("FC2: no llego HOME  ");
     }
-    lcd.setCursor(0,3); lcd.print("Pulsa AJUSTES=borrar");   // 20
+    lcd.setCursor(0,3); lcd.print("Pulsa AJUSTES=borrar");
     return;
   }
 
-  // MODO NORMAL: Pantalla sin errores
-  lcd.setCursor(0,0); lcd.print("Botellas:");
-  lcd.setCursor(0,1); lcd.print("FC1:");
-  lcd.setCursor(10,1); lcd.print("FC2:");
   if (set_mode) {
-    // MODO AJUSTES: Desplazados a la derecha para evitar píxeles dañados
-    lcd.setCursor(0,2); lcd.print("[SET] TAct:");
-    lcd.setCursor(0,3); lcd.print("[SET] TCtE:");
+    lcd.setCursor(0,0); lcd.print("** MODO AJUSTES **  ");
+    lcd.setCursor(0,1); lcd.print("FC1:     FC2:       ");
+    lcd.setCursor(0,2); lcd.print("T.Act(ms):          ");
+    lcd.setCursor(0,3); lcd.print("T.Ctra(ms):         ");
   } else {
-    // MODO NORMAL: Desplazados a la derecha para evitar píxeles dañados (cols 11-14)
-    lcd.setCursor(0,2);  lcd.print("TAct:");
-    lcd.setCursor(0,3);  lcd.print("TTotal:");
+    lcd.setCursor(0,0); lcd.print("Botellas:           ");
+    lcd.setCursor(0,1); lcd.print("FC1:     FC2:       ");
+    lcd.setCursor(0,2); lcd.print("T.Act(ms):          ");
+    lcd.setCursor(0,3); lcd.print("T.Ciclo(s):         ");
   }
 }
 
@@ -260,26 +256,22 @@ void setup() {
   last_ajustes_activos = false;
   need_full_redraw = false;
 
-  lcd_print_int(10,0, botellas_etiquetadas, 4);
+  // R0: "Botellas:           " valor col 10 ancho 4
+  // R1: "FC1:     FC2:       " FC1 col 4 ancho 4, FC2 col 14 ancho 4
+  // R2: "T.Act(ms):          " valor col 15 ancho 5
+  // R3: "T.Ciclo(s):         " valor col 15 ancho 5
+  lcd_print_int(10, 0, botellas_etiquetadas, 4);
   last_botellas = botellas_etiquetadas;
 
-  // Mostrar estado de P26 en la esquina superior derecha
-  int p26_init = digitalRead(PIN_MOTOR_ETI) == HIGH ? 1 : 0;
-  lcd.setCursor(18,0);
-  lcd.print(p26_init);
-  last_p26_state = p26_init;
-
-  // Lecturas estables iniciales para mostrar en LCD
   int fc1 = isStableHigh(PIN_FC1) ? 1 : (isStableLow(PIN_FC1) ? 0 : (digitalRead(PIN_FC1)==HIGH));
   int fc2 = isStableHigh(PIN_FC2) ? 1 : (isStableLow(PIN_FC2) ? 0 : (digitalRead(PIN_FC2)==HIGH));
-  lcd_print_padded(4,1,  fc1==1 ? "HIGH" : "LOW ", 4);
-  lcd_print_padded(14,1, fc2==1 ? "HIGH" : "LOW ", 4);
+  lcd_print_padded(4,  1, fc1==1 ? "HIGH" : "LOW ", 4);
+  lcd_print_padded(14, 1, fc2==1 ? "HIGH" : "LOW ", 4);
   last_fc1 = fc1; last_fc2 = fc2;
 
-  // Desplazados a la derecha para evitar píxeles dañados
-  lcd_print_int(15,2, delay_botella_actuador, 4);
+  lcd_print_int(15, 2, delay_botella_actuador, 5);
   last_TAct = delay_botella_actuador;
-  lcd_print_float(15,3, tiempo_etiquetado, 7, 2);
+  lcd_print_float(15, 3, tiempo_etiquetado, 5, 2);
   last_TTotal = tiempo_etiquetado;
 }
 
@@ -485,43 +477,32 @@ if (!detectada_botella && ir_low_stable) {
   if (now - ultimo_refresco_lcd >= intervalo_lcd_idle && !error_fc1_timeout && !error_fc2_timeout) {
     ultimo_refresco_lcd = now;
 
-    if (botellas_etiquetadas != last_botellas) {
-      lcd_print_int(10,0, botellas_etiquetadas, 4);
+    if (!ajustes_activos && botellas_etiquetadas != last_botellas) {
+      lcd_print_int(10, 0, botellas_etiquetadas, 4);
       last_botellas = botellas_etiquetadas;
     }
 
-    // Mostrar estado estable en LCD (bloquea ~10 ms como máximo)
     int fc1v = isStableHigh(PIN_FC1) ? 1 : (isStableLow(PIN_FC1) ? 0 : (digitalRead(PIN_FC1)==HIGH));
     int fc2v = isStableHigh(PIN_FC2) ? 1 : (isStableLow(PIN_FC2) ? 0 : (digitalRead(PIN_FC2)==HIGH));
-    if (fc1v != last_fc1) { lcd_print_padded(4,1,  fc1v ? "HIGH" : "LOW ", 4); last_fc1 = fc1v; }
-    if (fc2v != last_fc2) { lcd_print_padded(14,1, fc2v ? "HIGH" : "LOW ", 4); last_fc2 = fc2v; }
-
-    // Mostrar estado de P26 en esquina superior derecha
-    int p26v = digitalRead(PIN_MOTOR_ETI) == HIGH ? 1 : 0;
-    if (p26v != last_p26_state) {
-      lcd.setCursor(18,0);
-      lcd.print(p26v);
-      last_p26_state = p26v;
-    }
+    if (fc1v != last_fc1) { lcd_print_padded(4,  1, fc1v ? "HIGH" : "LOW ", 4); last_fc1 = fc1v; }
+    if (fc2v != last_fc2) { lcd_print_padded(14, 1, fc2v ? "HIGH" : "LOW ", 4); last_fc2 = fc2v; }
 
     if (ajustes_activos) {
-      // MODO SET: Valores desplazados a la derecha (col 16) para evitar píxeles dañados
       if (delay_actuador_preview != last_TAct) {
-        lcd_print_int(15, 2, delay_actuador_preview, 4);
+        lcd_print_int(15, 2, delay_actuador_preview, 5);
         last_TAct = delay_actuador_preview;
       }
-      if (delay_contra_preview   != last_TCtE) {
-        lcd_print_int(15, 3, delay_contra_preview, 4);
+      if (delay_contra_preview != last_TCtE) {
+        lcd_print_int(15, 3, delay_contra_preview, 5);
         last_TCtE = delay_contra_preview;
       }
     } else {
-      // MODO NORMAL: Valores desplazados a la derecha para evitar píxeles dañados (cols 11-14)
       if (delay_botella_actuador != last_TAct) {
-        lcd_print_int(15, 2, delay_botella_actuador, 4);
+        lcd_print_int(15, 2, delay_botella_actuador, 5);
         last_TAct = delay_botella_actuador;
       }
       if (fabs(tiempo_etiquetado - last_TTotal) > 0.009f) {
-        lcd_print_float(15, 3, tiempo_etiquetado, 7, 2);
+        lcd_print_float(15, 3, tiempo_etiquetado, 5, 2);
         last_TTotal = tiempo_etiquetado;
       }
     }

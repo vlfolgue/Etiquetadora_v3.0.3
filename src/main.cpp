@@ -24,11 +24,9 @@ const int PIN_ACTUADOR    = 16;
    PARÁMETROS AJUSTABLES
    ========================= */
 unsigned long delay_botella_actuador = 0;
-unsigned long delay_botella_etiqueta = 200;
 unsigned long delay_etiqueta_contra  = 0;
 unsigned long tiempo_parada_actuador = 300;
 
-const unsigned long MOTOR_IGNITION_MS     = 200;  // ventana de ignición para detectar flanco (era 200 ms)
 const unsigned long DELAY_POST_ACTUADOR_MS = 50; // espera mínima tras extender actuador
 
 /* =========================
@@ -77,6 +75,30 @@ int   botellas_etiquetadas = 0;
 float tiempo_etiquetado    = 0.0;
 
 /* =========================
+   VELOCIDAD (Bot/h) - media últimas 30 botellas
+   ========================= */
+const int BPH_SAMPLES = 30;
+unsigned long bph_timestamps[BPH_SAMPLES] = {0};
+int   bph_idx   = 0;
+int   bph_count = 0;
+float botellas_por_hora = 0.0f;
+float last_bph = -1.0f;
+
+void registrar_botella_completada() {
+  bph_timestamps[bph_idx] = millis();
+  bph_idx = (bph_idx + 1) % BPH_SAMPLES;
+  if (bph_count < BPH_SAMPLES) bph_count++;
+
+  if (bph_count >= 2) {
+    int first_idx = (bph_count < BPH_SAMPLES) ? 0 : bph_idx;
+    int last_idx  = (bph_idx - 1 + BPH_SAMPLES) % BPH_SAMPLES;
+    unsigned long span_ms = bph_timestamps[last_idx] - bph_timestamps[first_idx];
+    if (span_ms > 0)
+      botellas_por_hora = (float)(bph_count - 1) * 3600000.0f / (float)span_ms;
+  }
+}
+
+/* =========================
    TIMEOUTS Y ERRORES
    ========================= */
 const unsigned long TIMEOUT_MOTOR_MS = 10000;  // 10 segundos máximo por motor
@@ -108,7 +130,6 @@ int   last_fc1 = -1, last_fc2 = -1;
 long  last_TAct = -1, last_TCtE = -1;
 float last_TTotal = -1.0f;
 bool  need_full_redraw = true;
-int   last_p26_state = -1;  // Estado anterior de P26 para actualizar LCD
 
 int filtrar_pot(int nuevo, int* hist, int &idx) {
   hist[idx] = nuevo;
@@ -147,7 +168,7 @@ void gestionar_ajustes() {
           tiempo_actuador_fuera = 0;
           inicio_motor_etiqueta = inicio_motor_contra = 0;
           need_full_redraw = true;
-        } else {
+        } else if (!detectada_botella) {
           ajustes_activos = true;
           need_full_redraw = true;
         }
@@ -163,8 +184,8 @@ void gestionar_ajustes() {
   if (ajustes_activos) {
     pot1_preview = filtrar_pot(analogRead(PIN_POT1), hist_pot1, idx_hist1);
     pot2_preview = filtrar_pot(analogRead(PIN_POT2), hist_pot2, idx_hist2);
-    delay_contra_preview   = map(pot1_preview, 0, 4095, 0, 1500);
-    delay_actuador_preview = map(pot2_preview, 0, 4095, 0, 1500);
+    delay_contra_preview   = map(pot1_preview, 0, 4095, 0, 2000);
+    delay_actuador_preview = map(pot2_preview, 0, 4095, 0, 2000);
   }
 }
 
@@ -194,38 +215,32 @@ void lcd_print_float(int col, int row, float val, int width, int decimals=2) {
 
 void lcd_draw_static_labels(bool set_mode) {
   lcd.clear();
+  delay(5);  // esperar a que el LCD procese el clear antes de escribir
 
-  // Si hay error de timeout en FC, mostrar alerta
+  //         "01234567890123456789"
   if (error_fc1_timeout || error_fc2_timeout) {
-    lcd.setCursor(0,0); lcd.print("Botellas:");
-    lcd.setCursor(0,1); lcd.print("FC1: ");
-    lcd.setCursor(5,1); lcd.print(error_fc1_timeout ? "FAIL" : "OK  ");
-    lcd.setCursor(10,1); lcd.print("FC2: ");
-    lcd.setCursor(15,1); lcd.print(error_fc2_timeout ? "FAIL" : "OK  ");
-
-    lcd.setCursor(0,2);
+    lcd.setCursor(0,0); lcd.print("!! FALLO DE SENSOR!!");
     if (error_fc1_timeout) {
-      lcd.print("ERROR: FC Etiquetas");
+      lcd.setCursor(0,1); lcd.print("Motor ETI parado    ");
+      lcd.setCursor(0,2); lcd.print("FC1: no llego HOME  ");
     } else {
-      lcd.print("ERROR: FC Contras");
+      lcd.setCursor(0,1); lcd.print("Motor CON parado    ");
+      lcd.setCursor(0,2); lcd.print("FC2: no llego HOME  ");
     }
-
-    lcd.setCursor(0,3); lcd.print("Presiona AJUSTES");
+    lcd.setCursor(0,3); lcd.print("Pulsa AJUSTES=borrar");
     return;
   }
 
-  // MODO NORMAL: Pantalla sin errores
-  lcd.setCursor(0,0); lcd.print("Botellas:");
-  lcd.setCursor(0,1); lcd.print("FC1:");
-  lcd.setCursor(10,1); lcd.print("FC2:");
   if (set_mode) {
-    // MODO AJUSTES: Desplazados a la derecha para evitar píxeles dañados
-    lcd.setCursor(0,2); lcd.print("[SET] TAct:");
-    lcd.setCursor(0,3); lcd.print("[SET] TCtE:");
+    lcd.setCursor(0,0); lcd.print("** MODO AJUSTES **  ");
+    lcd.setCursor(0,1); lcd.print("FC1:     FC2:       ");
+    lcd.setCursor(0,2); lcd.print("T.Ctra(ms):         ");
+    lcd.setCursor(0,3); lcd.print("T.Act(ms):          ");
   } else {
-    // MODO NORMAL: Desplazados a la derecha para evitar píxeles dañados (cols 11-14)
-    lcd.setCursor(0,2);  lcd.print("TAct:");
-    lcd.setCursor(0,3);  lcd.print("TTotal:");
+    lcd.setCursor(0,0); lcd.print("Botellas:           ");
+    lcd.setCursor(0,1); lcd.print("FC1:     FC2:       ");
+    lcd.setCursor(0,2); lcd.print("Bot/h:              ");
+    lcd.setCursor(0,3); lcd.print("T.Ciclo(s):         ");
   }
 }
 
@@ -240,14 +255,15 @@ void setup() {
   lcd.setCursor(0,0); lcd.print("Iniciando sistema");
 
   pinMode(PIN_IR_BOTELLA,  INPUT);
-  pinMode(PIN_FC1,         INPUT);
-  pinMode(PIN_FC2,         INPUT);
-  pinMode(PIN_BTN_CONTRAS, INPUT);
-  pinMode(PIN_BTN_AJUSTES, INPUT);
+  pinMode(PIN_FC1,         INPUT);           // GPIO34 — input-only, sin pull interno
+  pinMode(PIN_FC2,         INPUT);           // GPIO35 — input-only, sin pull interno
+  pinMode(PIN_BTN_CONTRAS, INPUT_PULLUP);    // GPIO25 activo-LOW: pull-up interno garantiza HIGH en reposo
+  pinMode(PIN_BTN_AJUSTES, INPUT_PULLDOWN);  // GPIO19 activo-HIGH: pull-down interno garantiza LOW en reposo
 
+  // GPIO26 = DAC2: desactivar explícitamente antes de usarlo como digital output
+  dacDisable(PIN_MOTOR_ETI);
   pinMode(PIN_ACTUADOR, OUTPUT);  digitalWrite(PIN_ACTUADOR, LOW);
   pinMode(PIN_MOTOR_ETI, OUTPUT); digitalWrite(PIN_MOTOR_ETI, LOW);
-  digitalWrite(PIN_MOTOR_ETI, LOW);  // DOBLE GARANTÍA: P26 DEBE estar en LOW
   pinMode(PIN_MOTOR_CON, OUTPUT); digitalWrite(PIN_MOTOR_CON, LOW);
 
   // Lectura inicial potenciómetros
@@ -258,33 +274,29 @@ void setup() {
   }
   int p1_init = filtrar_pot(analogRead(PIN_POT1), hist_pot1, idx_hist1);
   int p2_init = filtrar_pot(analogRead(PIN_POT2), hist_pot2, idx_hist2);
-  delay_etiqueta_contra  = map(p1_init, 0, 4095, 0, 1000);
-  delay_botella_actuador = map(p2_init, 0, 4095, 0, 1000);
+  delay_etiqueta_contra  = map(p1_init, 0, 4095, 0, 2000);
+  delay_botella_actuador = map(p2_init, 0, 4095, 0, 2000);
 
   lcd_draw_static_labels(false);
   last_ajustes_activos = false;
   need_full_redraw = false;
 
-  lcd_print_int(10,0, botellas_etiquetadas, 4);
+  // R0: "Botellas:           " valor col 10 ancho 4
+  // R1: "FC1:     FC2:       " FC1 col 4 ancho 4, FC2 col 14 ancho 4
+  // R2: "T.Act(ms):          " valor col 15 ancho 5
+  // R3: "T.Ciclo(s):         " valor col 15 ancho 5
+  lcd_print_int(10, 0, botellas_etiquetadas, 4);
   last_botellas = botellas_etiquetadas;
 
-  // Mostrar estado de P26 en la esquina superior derecha
-  int p26_init = digitalRead(PIN_MOTOR_ETI) == HIGH ? 1 : 0;
-  lcd.setCursor(18,0);
-  lcd.print(p26_init);
-  last_p26_state = p26_init;
-
-  // Lecturas estables iniciales para mostrar en LCD
   int fc1 = isStableHigh(PIN_FC1) ? 1 : (isStableLow(PIN_FC1) ? 0 : (digitalRead(PIN_FC1)==HIGH));
   int fc2 = isStableHigh(PIN_FC2) ? 1 : (isStableLow(PIN_FC2) ? 0 : (digitalRead(PIN_FC2)==HIGH));
-  lcd_print_padded(4,1,  fc1==1 ? "HIGH" : "LOW ", 4);
-  lcd_print_padded(14,1, fc2==1 ? "HIGH" : "LOW ", 4);
+  lcd_print_padded(4,  1, fc1==1 ? "HIGH" : "LOW ", 4);
+  lcd_print_padded(14, 1, fc2==1 ? "HIGH" : "LOW ", 4);
   last_fc1 = fc1; last_fc2 = fc2;
 
-  // Desplazados a la derecha para evitar píxeles dañados
-  lcd_print_int(15,2, delay_botella_actuador, 4);
+  lcd_print_int(15, 3, delay_botella_actuador, 5);
   last_TAct = delay_botella_actuador;
-  lcd_print_float(15,3, tiempo_etiquetado, 7, 2);
+  lcd_print_float(15, 2, tiempo_etiquetado, 5, 2);
   last_TTotal = tiempo_etiquetado;
 }
 
@@ -317,8 +329,10 @@ ir_prev_high = ir_current;
 
 // Arranque de ciclo únicamente si la detección estable está presente
 if (!detectada_botella && ir_low_stable) {
-  mover1 = mover2 = true;
-  etiquetapuesta = contrapuesta = false;
+  mover1 = true;
+  mover2 = (digitalRead(PIN_BTN_CONTRAS) == HIGH);  // leer UNA sola vez al inicio del ciclo
+  etiquetapuesta = false;
+  contrapuesta   = !mover2;
   detectada_botella = true;
   llegada_botella = now;
 
@@ -329,18 +343,16 @@ if (!detectada_botella && ir_low_stable) {
   FCentrecontras   = true;   // HOME es HIGH para FC2
 
   // Inicializar máquina de estados: si arrancamos con FC en ETIQUETA (LOW), ya la vimos
-  // Lectura rápida para saber estado actual
-  bool fc1_actual = (digitalRead(PIN_FC1) == HIGH);
-  bool fc2_actual = (digitalRead(PIN_FC2) == HIGH);
-  fc1_vio_etiqueta = !fc1_actual;  // Si está en LOW (no HOME), ya vimos etiqueta
-  fc2_vio_etiqueta = !fc2_actual;  // Si está en LOW (no HOME), ya vimos etiqueta
+  // Lectura estable para evitar que ruido en GPIO34/35 dé estado incorrecto al inicio
+  bool fc1_actual = isStableLevel(PIN_FC1, HIGH);   // true = estable en HOME
+  bool fc2_actual = isStableLevel(PIN_FC2, HIGH);   // true = estable en HOME
+  fc1_vio_etiqueta = !fc1_actual;  // Si NO está en HOME → ya vimos etiqueta
+  fc2_vio_etiqueta = !fc2_actual;  // Si NO está en HOME → ya vimos etiqueta
 }
 
 
-  // 2) Selector contras
-  if (digitalRead(PIN_BTN_CONTRAS) == LOW) { mover2 = false; contrapuesta = true; }
+  // 2) Actuador
 
-  // 3) Actuador
   if (mover1 && !actuador_fuera && llegada_botella &&
       now > (llegada_botella + delay_botella_actuador)) {
     digitalWrite(PIN_ACTUADOR, HIGH);
@@ -348,7 +360,7 @@ if (!detectada_botella && ir_low_stable) {
     tiempo_actuador_fuera = now;
   }
 
-  // 4) Motor etiquetas (entre=HIGH)
+  // 3) Motor etiquetas (entre=HIGH)
   // GARANTÍA: P26 solo puede ir a HIGH si hay botella detectada
   if (!detectada_botella) {
     digitalWrite(PIN_MOTOR_ETI, LOW);
@@ -363,7 +375,7 @@ if (!detectada_botella && ir_low_stable) {
       digitalWrite(PIN_MOTOR_ETI, LOW);
       mover1 = false;
     }
-    if (inicio_motor_etiqueta == 0 && digitalRead(PIN_MOTOR_ETI) == HIGH) inicio_motor_etiqueta = millis();
+    if (inicio_motor_etiqueta == 0) inicio_motor_etiqueta = millis();
 
     // NUEVO: Verificar timeout (5 segundos máximo)
     if ((millis() - inicio_motor_etiqueta) > TIMEOUT_MOTOR_MS) {
@@ -386,8 +398,8 @@ if (!detectada_botella && ir_low_stable) {
     bool fc1_en_etiqueta = (fc1_high != FCentreetiquetas);
     bool fc1_en_home = (fc1_high == FCentreetiquetas);
 
-    // PASO 1: Registrar si vimos la etiqueta (cambio respecto a HOME)
-    if (!fc1_vio_etiqueta && fc1_en_etiqueta) {
+    // PASO 1: Registrar si vimos la etiqueta (cambio respecto a HOME) — requiere nivel estable 5ms
+    if (!fc1_vio_etiqueta && fc1_en_etiqueta && isStableLevel(PIN_FC1, FCentreetiquetas ? LOW : HIGH)) {
       fc1_vio_etiqueta = true;
     }
 
@@ -402,7 +414,7 @@ if (!detectada_botella && ir_low_stable) {
     }
   }
 
-  // 5) Motor contras (entre=HIGH)
+  // 4) Motor contras (entre=HIGH)
   // GARANTÍA: P27 solo puede ir a HIGH si hay botella detectada
   if (!detectada_botella) {
     digitalWrite(PIN_MOTOR_CON, LOW);
@@ -438,8 +450,8 @@ if (!detectada_botella && ir_low_stable) {
       bool fc2_en_etiqueta = (fc2_high != FCentrecontras);
       bool fc2_en_home = (fc2_high == FCentrecontras);
 
-      // PASO 1: Registrar si vimos la contraetiqueta (cambio respecto a HOME)
-      if (!fc2_vio_etiqueta && fc2_en_etiqueta) {
+      // PASO 1: Registrar si vimos la contraetiqueta (cambio respecto a HOME) — requiere nivel estable 5ms
+      if (!fc2_vio_etiqueta && fc2_en_etiqueta && isStableLevel(PIN_FC2, FCentrecontras ? LOW : HIGH)) {
         fc2_vio_etiqueta = true;
       }
 
@@ -455,7 +467,7 @@ if (!detectada_botella && ir_low_stable) {
     }
   }
 
-  // 6) Parar actuador
+  // 5) Parar actuador
   if (etiquetapuesta && contrapuesta &&
       now > etiqueta_colocada + tiempo_parada_actuador &&
       now > contra_colocada + tiempo_parada_actuador) {
@@ -475,58 +487,48 @@ if (!detectada_botella && ir_low_stable) {
     fc1_vio_etiqueta = false;
     fc2_vio_etiqueta = false;
     botellas_etiquetadas++;
+    registrar_botella_completada();
   }
 
-  // 7) Ajustes + LCD
+  // 6) Ajustes + LCD
   gestionar_ajustes();
   if (need_full_redraw || last_ajustes_activos != ajustes_activos) {
     lcd_draw_static_labels(ajustes_activos);
     need_full_redraw = false;
     last_ajustes_activos = ajustes_activos;
     last_botellas = -1; last_fc1 = -1; last_fc2 = -1;
-    last_TAct = -1; last_TCtE = -1; last_TTotal = -1.0f;
+    last_TAct = -1; last_TCtE = -1; last_TTotal = -1.0f; last_bph = -1.0f;
   }
 
-  if (now - ultimo_refresco_lcd >= intervalo_lcd_idle) {
+  if (now - ultimo_refresco_lcd >= intervalo_lcd_idle && !error_fc1_timeout && !error_fc2_timeout && !detectada_botella) {
     ultimo_refresco_lcd = now;
 
-    if (botellas_etiquetadas != last_botellas) {
-      lcd_print_int(10,0, botellas_etiquetadas, 4);
+    if (!ajustes_activos && botellas_etiquetadas != last_botellas) {
+      lcd_print_int(10, 0, botellas_etiquetadas, 4);
       last_botellas = botellas_etiquetadas;
     }
 
-    // Mostrar estado estable en LCD (bloquea ~10 ms como máximo)
     int fc1v = isStableHigh(PIN_FC1) ? 1 : (isStableLow(PIN_FC1) ? 0 : (digitalRead(PIN_FC1)==HIGH));
     int fc2v = isStableHigh(PIN_FC2) ? 1 : (isStableLow(PIN_FC2) ? 0 : (digitalRead(PIN_FC2)==HIGH));
-    if (fc1v != last_fc1) { lcd_print_padded(4,1,  fc1v ? "HIGH" : "LOW ", 4); last_fc1 = fc1v; }
-    if (fc2v != last_fc2) { lcd_print_padded(14,1, fc2v ? "HIGH" : "LOW ", 4); last_fc2 = fc2v; }
-
-    // Mostrar estado de P26 en esquina superior derecha
-    int p26v = digitalRead(PIN_MOTOR_ETI) == HIGH ? 1 : 0;
-    if (p26v != last_p26_state) {
-      lcd.setCursor(18,0);
-      lcd.print(p26v);
-      last_p26_state = p26v;
-    }
+    if (fc1v != last_fc1) { lcd_print_padded(4,  1, fc1v ? "HIGH" : "LOW ", 4); last_fc1 = fc1v; }
+    if (fc2v != last_fc2) { lcd_print_padded(14, 1, fc2v ? "HIGH" : "LOW ", 4); last_fc2 = fc2v; }
 
     if (ajustes_activos) {
-      // MODO SET: Valores desplazados a la derecha (col 16) para evitar píxeles dañados
-      if (delay_actuador_preview != last_TAct) {
-        lcd_print_int(15, 2, delay_actuador_preview, 4);
-        last_TAct = delay_actuador_preview;
-      }
-      if (delay_contra_preview   != last_TCtE) {
-        lcd_print_int(15, 3, delay_contra_preview, 4);
+      if (delay_contra_preview != last_TCtE) {
+        lcd_print_int(15, 2, delay_contra_preview, 5);
         last_TCtE = delay_contra_preview;
       }
+      if (delay_actuador_preview != last_TAct) {
+        lcd_print_int(15, 3, delay_actuador_preview, 5);
+        last_TAct = delay_actuador_preview;
+      }
     } else {
-      // MODO NORMAL: Valores desplazados a la derecha para evitar píxeles dañados (cols 11-14)
-      if (delay_botella_actuador != last_TAct) {
-        lcd_print_int(15, 2, delay_botella_actuador, 4);
-        last_TAct = delay_botella_actuador;
+      if (fabs(botellas_por_hora - last_bph) > 0.5f) {
+        lcd_print_int(15, 2, (long)botellas_por_hora, 5);
+        last_bph = botellas_por_hora;
       }
       if (fabs(tiempo_etiquetado - last_TTotal) > 0.009f) {
-        lcd_print_float(15, 3, tiempo_etiquetado, 7, 2);
+        lcd_print_float(15, 3, tiempo_etiquetado, 5, 2);
         last_TTotal = tiempo_etiquetado;
       }
     }
